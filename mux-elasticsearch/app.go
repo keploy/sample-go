@@ -1,3 +1,5 @@
+// Package main provides a simple HTTP server that interacts with Elasticsearch to perform CRUD operations on documents.
+// The server is built using the `gorilla/mux` router and `elasticsearch-go` client for communicating with the Elasticsearch service.
 package main
 
 import (
@@ -95,7 +97,12 @@ func (a *App) createDocument(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err = res.Body.Close(); err != nil {
+			log.Printf("%s", err)
+			os.Exit(1)
+		}
+	}()
 
 	if res.IsError() {
 		http.Error(w, res.String(), http.StatusInternalServerError)
@@ -110,7 +117,10 @@ func (a *App) createDocument(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"id": createResponse.ID})
+	err = json.NewEncoder(w).Encode(map[string]string{"id": createResponse.ID})
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 func (a *App) getDocument(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +136,13 @@ func (a *App) getDocument(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer res.Body.Close()
+
+	defer func() {
+		if err = res.Body.Close(); err != nil {
+			log.Printf("%s", err)
+			os.Exit(1)
+		}
+	}()
 
 	if res.IsError() {
 		http.Error(w, res.String(), http.StatusNotFound)
@@ -142,7 +158,9 @@ func (a *App) getDocument(w http.ResponseWriter, r *http.Request) {
 	source := doc["_source"].(map[string]interface{})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(source)
+	if err = json.NewEncoder(w).Encode(source); err != nil {
+		log.Println(err)
+	}
 }
 
 func (a *App) updateDocument(w http.ResponseWriter, r *http.Request) {
@@ -172,7 +190,12 @@ func (a *App) updateDocument(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err = res.Body.Close(); err != nil {
+			log.Printf("%s", err)
+			os.Exit(1)
+		}
+	}()
 
 	if res.IsError() {
 		http.Error(w, res.String(), http.StatusInternalServerError)
@@ -195,7 +218,12 @@ func (a *App) deleteDocument(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer res.Body.Close()
+	defer func() {
+		if err = res.Body.Close(); err != nil {
+			log.Printf("%s", err)
+			os.Exit(1)
+		}
+	}()
 
 	if res.IsError() {
 		http.Error(w, res.String(), http.StatusInternalServerError)
@@ -208,7 +236,8 @@ func (a *App) deleteDocument(w http.ResponseWriter, r *http.Request) {
 func (a *App) Run(port string) {
 	go func() {
 		if err := a.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Could not listen on %s: %v\n", port, err)
+			log.Printf("Could not listen on %s: %v\n", port, err)
+			os.Exit(1)
 		}
 	}()
 
@@ -222,15 +251,19 @@ func (a *App) Run(port string) {
 	defer cancel()
 
 	if err := a.Server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		log.Printf("Server forced to shutdown: %v", err)
+		os.Exit(1)
 	}
 
 	log.Println("Server exiting")
 }
 
-func (a *App) Hello(res http.ResponseWriter, req *http.Request) {
+func (a *App) Hello(res http.ResponseWriter, _ *http.Request) {
 	var result = "Hello"
-	res.Write([]byte(result))
+	_, err := res.Write([]byte(result))
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 func (a *App) initializeRoutes() {

@@ -1,3 +1,6 @@
+// This package implements a simple HTTP server with two main endpoints:
+// - `/event`: Provides a Server-Sent Events (SSE) stream to clients.
+// - `/time`: Responds with the current time and stores it in a MongoDB collection called "time_collection".
 package main
 
 import (
@@ -60,7 +63,10 @@ func sseHandler(w http.ResponseWriter, r *http.Request) {
 		case message := <-msgChan:
 			fmt.Println("case message... sending message")
 			fmt.Println(message)
-			fmt.Fprintf(w, "data: %s\n\n", message)
+			_, err := fmt.Fprintf(w, "data: %s\n\n", message)
+			if err != nil {
+				log.Println(err)
+			}
 			flusher.Flush()
 		case <-r.Context().Done():
 			fmt.Println("Client closed connection")
@@ -90,19 +96,22 @@ func main() {
 	var err error
 	client, err = mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("%s", err)
+		os.Exit(1)
 	}
 	defer func() {
 		err = client.Disconnect(context.Background())
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("%s", err)
+			os.Exit(1)
 		}
 	}()
 
 	// Verify the connection
 	err = client.Ping(context.Background(), nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("%s", err)
+		os.Exit(1)
 	}
 	fmt.Println("Connected to MongoDB!")
 	router.HandleFunc("/event", sseHandler)
@@ -120,7 +129,8 @@ func main() {
 	// Run the server in a goroutine
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Could not listen on :3500: %v\n", err)
+			log.Printf("Could not listen on :3500: %v\n", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -132,8 +142,8 @@ func main() {
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Could not gracefully shutdown the server: %v\n", err)
+		log.Printf("Could not gracefully shutdown the server: %v\n", err)
+		os.Exit(1)
 	}
-
 	fmt.Println("Server stopped")
 }

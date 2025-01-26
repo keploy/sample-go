@@ -1,8 +1,12 @@
+// Package main is the entry point for the JWT-based user authentication service
+// using Gin framework and PostgreSQL database. It provides endpoints for
+// health check, token generation, and token validation.
 package main
 
 import (
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -35,7 +39,8 @@ func initDB() {
 	dsn := "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
 	db, err = gorm.Open("postgres", dsn)
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Printf("Failed to connect to database: %s", err)
+		os.Exit(1)
 	}
 	db.AutoMigrate(&User{})
 }
@@ -96,7 +101,7 @@ func CheckTokenHandler(c *gin.Context) {
 	claims := &Claims{}
 
 	// Parse the JWT string and store the result in `claims`
-	sentTokenObj, err := jwt.ParseWithClaims(sentToken, claims, func(token *jwt.Token) (interface{}, error) {
+	sentTokenObj, err := jwt.ParseWithClaims(sentToken, claims, func(*jwt.Token) (interface{}, error) {
 		return jwtKey, nil
 	})
 
@@ -133,7 +138,12 @@ func CheckTokenHandler(c *gin.Context) {
 func main() {
 	time.Sleep(2 * time.Second)
 	initDB()
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("%s", err)
+			os.Exit(1)
+		}
+	}()
 
 	router := gin.Default()
 
@@ -141,5 +151,5 @@ func main() {
 	router.GET("/generate-token", GenerateTokenHandler)
 	router.GET("/check-token", CheckTokenHandler)
 
-	router.Run(":8000")
+	log.Println(router.Run(":8000"))
 }
